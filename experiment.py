@@ -1,85 +1,62 @@
-from dataclasses import dataclass, field
-from typing import List, Any
+from sqlalchemy import Column, String, Float, Integer, DateTime, ForeignKey
+from sqlalchemy.orm import relationship, declarative_base
+from dataclasses import dataclass
 
-Interval = tuple[float, float] | None
-
-
-@dataclass
-class Measurement:
-    """These are the fields that represent the outputs of the experiment."""
-
-    name: str
-    unit: str
-    interval: Interval = None
-    values: List[float] = field(default_factory=list)
+Base = declarative_base()
 
 
 @dataclass
-class Variable:
-    """These are the fields that represent the inputs of the experiment."""
+class Measurement(Base):
+    __tablename__ = "measurements"
+    name = Column(String, nullable=False)
+    unit = Column(String, nullable=False)
+    experiment = relationship("Experiment", back_populates="measurements")
+    experiment_id = Column(Integer, ForeignKey("experiments.id"))
+    values = relationship("MeasurementValue", back_populates="measurement")
+    id = Column(Integer, primary_key=True, autoincrement=True)
 
-    name: str
-    unit: str
-    interval: Interval = None
-    value: Any = None
+    def take_measurement(self, value: float):
+        self.values.append(MeasurementValue(value=value))
 
 
 @dataclass
-class Experiment:
-    """This is the data class that represents the experiment."""
+class MeasurementValue(Base):
+    __tablename__ = "measurement_values"
+    value = Column(Float, nullable=False)
+    measurement = relationship("Measurement", back_populates="values")
+    measurement_id = Column(Integer, ForeignKey("measurements.id"))
+    id = Column(Integer, primary_key=True, autoincrement=True)
 
-    experiment: str
-    date: str
-    measurements: dict[str, Measurement] = field(default_factory=dict)
-    variables: dict[str, Variable] = field(default_factory=dict)
 
-    def to_json(self):
-        # Convert the data class to a dictionary, which can be easily converted to JSON.
-        import json
+@dataclass
+class Variable(Base):
+    __tablename__ = "variables"
+    name = Column(String, nullable=False)
+    unit = Column(String, nullable=False)
+    value = Column(Integer, nullable=False)  # Storing Any type as string
+    experiment = relationship("Experiment", back_populates="variables")
+    experiment_id = Column(Integer, ForeignKey("experiments.id"))
+    id = Column(Integer, primary_key=True, autoincrement=True)
 
-        return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=4)
 
-    def from_json(self, json_str):
-        # Convert a JSON string to a data class.
-        import json
+@dataclass
+class Experiment(Base):
+    __tablename__ = "experiments"
+    experiment = Column(String, nullable=False)
+    date = Column(DateTime, nullable=False)
+    measurements = relationship("Measurement", back_populates="experiment")
+    variables = relationship("Variable", back_populates="experiment")
+    id = Column(Integer, primary_key=True, autoincrement=True)
 
-        data = json.loads(json_str)
-        self.__dict__.update(data)
+    def get_measurement(self, source: str):
+        # Get a measurement from the experiment.
+        for m in self.measurements:
+            if m.name == source:
+                return m
+        raise ValueError(f"Measurement {source} not found in the experiment.")
 
-    def add_measurement(self, measurement: Measurement):
-        # Add a measurement to the experiment.
-        if measurement.name in self.measurements:
-            raise ValueError(
-                f"Measurement {measurement.name} already exists in the experiment."
-            )
-        self.measurements[measurement.name] = measurement
-
-    def add_measurements(self, measurements: List[Measurement]):
-        # Add a list of measurements to the experiment.
-        for measurement in measurements:
-            self.add_measurement(measurement)
-
-    def take_measurement(self, source: str, value: float):
-        # Add a measurement to the experiment.
-        if source not in self.measurements:
-            raise ValueError(f"Measurement {source} not found in the experiment.")
-        self.measurements[source].values.append(value)
-
-    def add_variable(self, variable: Variable):
-        # Add a variable to the experiment.
-        if variable.name in self.variables:
-            raise ValueError(
-                f"Variable {variable.name} already exists in the experiment."
-            )
-        self.variables[variable.name] = variable
-
-    def add_variables(self, variables: List[Variable]):
-        # Add a list of variables to the experiment.
-        for variable in variables:
-            self.add_variable(variable)
-
-    def set_variable(self, source: str, value: Any):
-        # Set a variable in the experiment.
-        if source not in self.variables:
-            raise ValueError(f"Variable {source} not found in the experiment.")
-        self.variables[source].value = value
+    def take_measurement(self, source: str | Measurement, value: float):
+        measurement: Measurement = (
+            source if isinstance(source, Measurement) else self.get_measurement(source)
+        )
+        measurement.take_measurement(value)
