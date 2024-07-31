@@ -1,26 +1,48 @@
-from dataclasses import dataclass
-
 from experiment import Experiment, Measurement, Variable
 
 
-@dataclass
-class MoistureExperiment(Experiment):
-    def __init__(
-        self,
-        date: str,
-        cold_soak_time: float | None,
-        cold_soak_temp: float | None,
-        hot_soak_time: float | None,
-        hot_soak_temp: float | None,
-    ):
-        super().__init__(experiment="Moisture Analysis", date=date)
-        variables = [
-            Variable("cold-soak-time", "hour", (5, 45), cold_soak_time),
-            Variable("cold-soak-temp", "degF", (69, 72), cold_soak_temp),
-            Variable("hot-soak-time", "minute", (5, 20), hot_soak_time),
-            Variable("hot-soak-temp", "degF", (180, 200), hot_soak_temp),
-        ]
-        self.add_variables(variables)
+def make_cold_bath_experiment(
+    date: str,
+    initial_moisture: float,
+    water_temperature: float,
+    soak_time: int,
+) -> Experiment:
 
-        measurement = Measurement("moisture-content", "%", (0.06, 0.08))
-        self.add_measurement(measurement)
+    return Experiment(
+        date=date,
+        experiment="moisture-cold-bath",
+        variables=[
+            Variable(name="initial-moisture", unit="%", value=initial_moisture),
+            Variable(
+                name="water-temperature", unit="deg F", value=int(water_temperature)
+            ),
+            Variable(name="soak-time", unit="hours", value=soak_time),
+        ],
+        measurements=[
+            Measurement(name="final-moisture", unit="%"),
+            Measurement(name="final-temperature", unit="deg F"),
+        ],
+    )
+
+
+def make_hot_bath_experiment(
+    date: str,
+    initial_moisture: float,
+    water_temperature: float,
+    soak_time: int,
+) -> Experiment:
+
+    return Experiment(
+        date=date,
+        experiment="moisture-cold-bath",
+        variables=[
+            Variable(name="initial-moisture", unit="%", value=initial_moisture),
+            Variable(
+                name="water-temperature", unit="deg F", value=int(water_temperature)
+            ),
+            Variable(name="soak-time", unit="minutes", value=soak_time),
+        ],
+        measurements=[
+            Measurement(name="final-moisture", unit="%"),
+        ],
+    )
